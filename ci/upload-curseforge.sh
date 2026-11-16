@@ -11,6 +11,31 @@ TOC="$ADDON_DIR/$ADDON_DIR.toc"
 : "${CF_API_TOKEN:?Set CF_API_TOKEN in Settings > CI/CD > Variables}"
 : "${CF_PROJECT_ID:?Set CF_PROJECT_ID in Settings > CI/CD > Variables}"
 
+# Pasted tokens often carry stray spaces, newlines or quotes; CurseForge rejects those as
+# "malformed" (HTTP 400). An author upload token looks like xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx.
+CF_API_TOKEN="$(printf '%s' "$CF_API_TOKEN" | tr -d '[:space:]"'\''')"
+if [[ ! "$CF_API_TOKEN" =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ ]]; then
+  echo "ERROR: CF_API_TOKEN doesn't look like a CurseForge upload token (${#CF_API_TOKEN} characters;"
+  echo "       expected xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx). Create one at"
+  echo "       https://authors.curseforge.com/account/api-tokens - not a CurseForge Core API key"
+  echo "       (those start with \$2a\$) - and if it contains '\$', untick 'Expand variable reference'."
+  exit 1
+fi
+
+# GET a CurseForge API path; on failure print CurseForge's own error message, not just a code.
+cf_get() {
+  local body code
+  body="$(mktemp)"
+  code="$(curl -sS -o "$body" -w '%{http_code}' -H "X-Api-Token: $CF_API_TOKEN" "$API/$1")"
+  if [[ "$code" != "200" ]]; then
+    echo "ERROR: CurseForge returned HTTP $code for $1:" >&2
+    cat "$body" >&2; echo >&2
+    rm -f "$body"
+    return 1
+  fi
+  cat "$body"; rm -f "$body"
+}
+
 zip_name="$(cat dist/ZIP_NAME)"
 version="$(cat dist/VERSION)"
 zip_path="dist/$zip_name"
@@ -29,7 +54,7 @@ esac
 if [[ -n "${CF_GAME_VERSION_IDS:-}" ]]; then
   game_versions="$(jq -cn --arg ids "$CF_GAME_VERSION_IDS" '$ids | split(",") | map(gsub("\\s";"") | tonumber)')"
 else
-  all_versions="$(curl -fsS -H "X-Api-Token: $CF_API_TOKEN" "$API/game/versions")"
+  all_versions="$(cf_get game/versions)"
   game_versions="[]"
   missing=0
   for interface in $(grep -h -m1 '^## Interface:' "$ADDON_DIR"/*.toc | sed 's/^## Interface:[[:space:]]*//; s/\r$//' | tr ',' '\n' | tr -d ' ' | sort -u); do
