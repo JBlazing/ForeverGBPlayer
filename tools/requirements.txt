@@ -1,0 +1,5 @@
+# Python tools: tests (lupa runs the addon under real Lua 5.1), test images, sound pack.
+lupa==2.8
+pillow==13.0.0
+numpy==2.5.5
+soundfile==0.14.0

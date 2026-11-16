@@ -1,0 +1,700 @@
+<title>GB ROM Converter</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Silkscreen&display=swap">
+<style>
+/* Layout: one narrow working column - drop zone, converted cartridges, install target, pack. */
+:root {
+  --bg: #eef1ea;
+  --surface: #ffffff;
+  --ink: #18221a;
+  --muted: #56645a;
+  --line: #d3dacd;
+  --accent: #2f5d3a;
+  --accent-ink: #ffffff;
+  --accent-soft: #dfe9dc;
+  --ok: #2b7a45;
+  --warn: #8a5d00;
+  --bad: #b3261e;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --font-mark: "Silkscreen", "IBM Plex Mono", ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1410; --surface: #161f19; --ink: #e2e9de; --muted: #98a69a; --line: #2a362d;
+    --accent: #8cc58b; --accent-ink: #0e1410; --accent-soft: #1f2e22;
+    --ok: #7fcf8f; --warn: #e3b341; --bad: #ff8a80; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1410; --surface: #161f19; --ink: #e2e9de; --muted: #98a69a; --line: #2a362d;
+  --accent: #8cc58b; --accent-ink: #0e1410; --accent-soft: #1f2e22;
+  --ok: #7fcf8f; --warn: #e3b341; --bad: #ff8a80; color-scheme: dark;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font: 15px/1.55 var(--font-body);
+}
+.page {
+  max-width: 760px;
+  margin: 0 auto;
+  padding-block: 28px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid;
+  gap: 22px;
+}
+header { display: grid; gap: 6px; }
+.mark {
+  font: 22px/1.1 var(--font-mark);
+  letter-spacing: 0.02em;
+  color: var(--accent);
+  margin: 0;
+  text-wrap: balance;
+}
+.lede { margin: 0; color: var(--muted); max-width: 62ch; }
+.lede strong { color: var(--ink); font-weight: 500; }
+
+h2 {
+  font: 600 12px/1.2 var(--font-body);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  margin: 0;
+}
+section { display: grid; gap: 10px; min-width: 0; }
+
+/* Drop zone: shaped like a cartridge slot. */
+.drop {
+  position: relative;
+  border: 2px dashed var(--line);
+  border-radius: 10px 10px 4px 4px;
+  background: var(--surface);
+  padding: 26px 20px;
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+.drop:hover, .drop:focus-within, .drop.over { border-color: var(--accent); background: var(--accent-soft); }
+.drop input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
+.drop .big { font-weight: 600; font-size: 16px; }
+.drop .small { color: var(--muted); font-size: 13px; }
+.slot { width: 120px; height: 10px; border-radius: 3px; background: var(--line); }
+
+.carts { display: grid; gap: 10px; }
+.empty { color: var(--muted); font-size: 14px; margin: 0; }
+.cart {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-left: 6px solid var(--accent);
+  border-radius: 6px;
+  padding: 12px 14px;
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+.cart.err { border-left-color: var(--bad); }
+.cart-top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; }
+.cart-title { font: 500 15px var(--font-mono); overflow-wrap: anywhere; }
+.cart-file { color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
+.cart-top .spacer { flex: 1; }
+.facts { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  font: 12px/1 var(--font-mono);
+  padding: 5px 7px;
+  border-radius: 4px;
+  background: var(--accent-soft);
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.chip.ok { color: var(--ok); }
+.chip.warn { color: var(--warn); }
+.chip.bad { color: var(--bad); }
+.namerow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.namerow label { font-size: 13px; color: var(--muted); }
+.notes { margin: 0; padding-left: 18px; font-size: 13px; color: var(--warn); }
+.notes.bad { color: var(--bad); }
+
+input[type="text"] {
+  font: 14px var(--font-mono);
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 6px 8px;
+  min-width: 0;
+}
+input[type="text"]:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.hint { font-size: 13px; color: var(--muted); margin: 0; }
+code { font: 13px var(--font-mono); background: var(--accent-soft); padding: 1px 5px; border-radius: 3px; overflow-wrap: anywhere; }
+
+button {
+  font: 500 14px var(--font-body);
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  padding: 7px 12px;
+  cursor: pointer;
+}
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  padding: 10px 16px;
+  font-size: 15px;
+}
+button:disabled { opacity: .45; cursor: not-allowed; }
+button.link { border: 0; background: none; color: var(--muted); padding: 4px 6px; font-size: 13px; }
+button.link:hover { color: var(--bad); }
+
+.pack { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
+#status { font-size: 14px; color: var(--muted); }
+#status.ok { color: var(--ok); }
+#status.bad { color: var(--bad); }
+
+.steps { margin: 0; padding-left: 20px; display: grid; gap: 6px; font-size: 14px; }
+.tree {
+  font: 13px/1.5 var(--font-mono);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin: 0;
+  overflow-x: auto;
+  white-space: pre;
+}
+footer { font-size: 13px; color: var(--muted); display: grid; gap: 4px; }
+#selftest.ok { color: var(--ok); }
+#selftest.bad { color: var(--bad); }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="page">
+  <header>
+    <h1 class="mark">GB ROM Converter</h1>
+    <p class="lede">Turns Game Boy <strong>.gb</strong> and Game Boy Color <strong>.gbc</strong> ROMs into ROM pack
+      addons for ForeverGBPlayer, zipped and ready to extract into your AddOns folder. Each ROM becomes its own small
+      addon that registers itself with ForeverGBPlayer when WoW starts. Conversion runs in this tab:
+      <strong>your ROMs are never uploaded</strong>.</p>
+  </header>
+
+  <section aria-labelledby="h-add">
+    <h2 id="h-add">1 · Add ROMs</h2>
+    <div class="drop" id="drop">
+      <div class="slot" aria-hidden="true"></div>
+      <div class="big">Drop .gb or .gbc files here</div>
+      <div class="small">or click to choose · several at once is fine</div>
+      <input type="file" id="picker" multiple accept=".gb,.gbc,.gba,.sgb,.cgb" aria-label="Choose ROM files">
+    </div>
+  </section>
+
+  <section aria-labelledby="h-carts">
+    <h2 id="h-carts">2 · Check the conversion</h2>
+    <div class="carts" id="carts">
+      <p class="empty" id="empty">Nothing yet. Each ROM you add shows up here with its cartridge header: title,
+        mapper, Color support, save RAM and checksums. The name field is what you type after <code>/fgb play</code>.</p>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-pack">
+    <h2 id="h-pack">3 · Download and install</h2>
+    <div class="pack">
+      <button class="primary" id="download" disabled>Download zip</button>
+      <span id="status" role="status" aria-live="polite">Add a ROM to enable the download.</span>
+    </div>
+    <ol class="steps">
+      <li>Open the zip (double-click it) and drag the folder inside into your WoW <strong>AddOns</strong> folder,
+        the same folder that has <code>ForeverGBPlayer</code> in it. Each game is its own folder:</li>
+    </ol>
+    <pre class="tree" id="tree">(add a ROM to see the folders)</pre>
+    <ol class="steps" start="2">
+      <li>Don't use "Extract All". It puts the games one folder too deep, and WoW won't find them.</li>
+      <li>Restart WoW. A <code>/reload</code> doesn't pick up new addon folders. Each game shows in the AddOns list as
+        <strong>GB ROM: &lt;title&gt;</strong>, and you can turn each one on or off there.</li>
+      <li>In game, type <code>/fgb play &lt;name&gt;</code>. <code>/fgb roms</code> lists your games.</li>
+    </ol>
+  </section>
+
+  <footer>
+    <span id="selftest">Checking the converter against the Python tool…</span>
+    <span>Same output as <code>tools/rom2lua.py</code>. Packs need ForeverGBPlayer installed and enabled. Game Boy Advance
+      (.gba) ROMs are a different console and can't run in this emulator.</span>
+  </footer>
+</div>
+
+<script>
+"use strict";
+// ---------------------------------------------------------------------------
+// Converter: a line-for-line port of tools/rom2lua.py (output is byte-identical).
+// ---------------------------------------------------------------------------
+const BANK = 0x4000, CHUNK = 512;
+const NINTENDO_LOGO = hexBytes("CEED6666CC0D000B03730083000C000D0008111F8889000EDCCC6EE6DDDDD999BBBB67636E0EECCCDDDC999FBBB9333E");
+const CART_TYPES = {
+  0x00: "ROM ONLY", 0x01: "MBC1", 0x02: "MBC1+RAM", 0x03: "MBC1+RAM+BATTERY",
+  0x05: "MBC2", 0x06: "MBC2+BATTERY", 0x08: "ROM+RAM", 0x09: "ROM+RAM+BATTERY",
+  0x0F: "MBC3+TIMER+BATTERY", 0x10: "MBC3+TIMER+RAM+BATTERY", 0x11: "MBC3",
+  0x12: "MBC3+RAM", 0x13: "MBC3+RAM+BATTERY", 0x19: "MBC5", 0x1A: "MBC5+RAM",
+  0x1B: "MBC5+RAM+BATTERY", 0x1C: "MBC5+RUMBLE", 0x1D: "MBC5+RUMBLE+RAM",
+  0x1E: "MBC5+RUMBLE+RAM+BATTERY",
+};
+// Cartridge types the emulator core can run (others convert but won't start).
+const SUPPORTED_CARTS = new Set([0x00, 0x01, 0x02, 0x03, 0x08, 0x09, 0x0F, 0x10, 0x11, 0x12, 0x13, 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E]);
+const RAM_SIZES = { 0: 0, 1: 2048, 2: 8192, 3: 32768, 4: 131072, 5: 65536 };
+const SELFTEST_SHA1 = "442348f8663490856e7c51d6085576026a5a4838"; // rom2lua.py output for the synthetic ROM below
+const ADDON_PREFIX = "ForeverGBPlayer_Rom_";
+// .toc variants, mirroring ForeverGBPlayer's own: [file suffix, Interface, AllowLoadGameType]
+const TOC_FLAVORS = [["", 16001, "camelot"], ["_Camelot", 16001, "camelot"], ["_TBC", 20506, null]];
+
+class RomError extends Error {}
+
+function hexBytes(h) {
+  const out = new Uint8Array(h.length / 2);
+  for (let i = 0; i < out.length; i++) out[i] = parseInt(h.substr(i * 2, 2), 16);
+  return out;
+}
+const hex2 = (b) => b.toString(16).toUpperCase().padStart(2, "0");
+
+async function sha1Hex(bytes) {
+  const d = new Uint8Array(await crypto.subtle.digest("SHA-1", bytes));
+  return Array.from(d, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function parseHeader(rom) {
+  if (rom.length < 0x150) throw new RomError(`The file is only ${rom.length} bytes, too small to be a Game Boy ROM.`);
+  const cgbFlag = rom[0x143];
+  const titleEnd = (cgbFlag === 0x80 || cgbFlag === 0xC0) ? 0x143 : 0x144;
+  let tb = rom.subarray(0x134, titleEnd);
+  const z = tb.indexOf(0);
+  if (z >= 0) tb = tb.subarray(0, z);
+  let title = "";
+  for (const b of tb) title += b < 0x80 ? String.fromCharCode(b) : "?";
+  title = title.trim();
+
+  let hdr = 0;
+  for (let a = 0x134; a < 0x14D; a++) hdr = (hdr - rom[a] - 1) & 0xFF;
+  let sum = 0;
+  for (let i = 0; i < rom.length; i++) sum += rom[i];
+  const glob = (sum - rom[0x14E] - rom[0x14F]) & 0xFFFF;
+  const code = rom[0x148];
+  let logoOk = true;
+  for (let i = 0; i < NINTENDO_LOGO.length; i++) if (rom[0x104 + i] !== NINTENDO_LOGO[i]) { logoOk = false; break; }
+  return {
+    title, cgbFlag,
+    cgb: cgbFlag === 0x80 ? "supported" : cgbFlag === 0xC0 ? "required" : "no",
+    sgb: rom[0x146] === 0x03,
+    cartType: rom[0x147],
+    cartName: CART_TYPES[rom[0x147]] ?? `unknown 0x${hex2(rom[0x147])}`,
+    romSizeDeclared: code <= 8 ? (32768 << code) : null,
+    ramSize: Object.prototype.hasOwnProperty.call(RAM_SIZES, rom[0x149]) ? RAM_SIZES[rom[0x149]] : null,
+    logoOk,
+    headerChecksumOk: hdr === rom[0x14D],
+    globalChecksumOk: glob === ((rom[0x14E] << 8) | rom[0x14F]),
+  };
+}
+
+function luaString(u8, start, end) {
+  const parts = ['"'];
+  for (let i = start; i < end; i++) {
+    const b = u8[i];
+    if (b >= 0x20 && b < 0x7F && b !== 0x22 && b !== 0x5C) parts.push(String.fromCharCode(b));
+    else if (i + 1 < end && u8[i + 1] >= 0x30 && u8[i + 1] <= 0x39) parts.push("\\" + String(b).padStart(3, "0"));
+    else parts.push("\\" + b);
+  }
+  parts.push('"');
+  return parts.join("");
+}
+
+function luaValue(v) {
+  if (typeof v === "boolean") return v ? "true" : "false";
+  if (v === null || v === undefined) return "nil";
+  if (typeof v === "number") return String(v);
+  return '"' + String(v).replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '"';
+}
+
+function sanitizeName(s) {
+  const n = s.toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "");
+  if (!n) throw new RomError("Couldn't make a name from this file. Type one in the name field.");
+  return n;
+}
+const stem = (fileName) => fileName.replace(/\.[^.]*$/, "") || fileName;
+
+// -> { name, text, header, warnings, size }
+async function convert(rom, fileName, name) {
+  if (/\.gba$/i.test(fileName) || (!parseHeaderSafeLogo(rom) && rom.length > 0xC0 && rom[0xB2] === 0x96)) {
+    throw new RomError("This is a Game Boy Advance ROM. That's a different console (ARM CPU), so this emulator can't run it. Use .gb or .gbc ROMs.");
+  }
+  const hdr = parseHeader(rom);
+  if (rom.length % BANK !== 0) throw new RomError(`The size (${rom.length.toLocaleString()} bytes) isn't a multiple of 16 KB, so this isn't a complete ROM dump.`);
+  const warnings = [];
+  if (hdr.romSizeDeclared && hdr.romSizeDeclared !== rom.length) warnings.push(`header declares ${hdr.romSizeDeclared} bytes, file has ${rom.length}`);
+  if (!hdr.logoOk) warnings.push("Nintendo logo mismatch (real hardware would refuse to boot)");
+  if (!hdr.headerChecksumOk) warnings.push("header checksum mismatch (real hardware would refuse to boot)");
+  if (!hdr.globalChecksumOk) warnings.push("global checksum mismatch (harmless; hardware ignores it)");
+
+  name = sanitizeName(name || stem(fileName));
+  const nbanks = rom.length / BANK;
+  const sha1 = await sha1Hex(rom);
+  const lines = [
+    `-- Generated by ForeverGBPlayer rom2lua from ${fileName}. Do not edit.`,
+    "-- ROM pack addon: registers this ROM with ForeverGBPlayer while the game loads.",
+    "local ADDON = ...",
+    "local rom = {",
+  ];
+  const meta = [
+    ["name", name], ["file", fileName], ["size", rom.length], ["sha1", sha1],
+    ["title", hdr.title], ["cgbFlag", hdr.cgbFlag], ["cgb", hdr.cgb], ["sgb", hdr.sgb],
+    ["cartType", hdr.cartType], ["cartName", hdr.cartName], ["ramSize", hdr.ramSize],
+    ["numBanks", nbanks],
+  ];
+  for (const [k, v] of meta) lines.push(`    ${k} = ${luaValue(v)},`);
+  lines.push("    banks = {");
+  for (let b = 0; b < nbanks; b++) {
+    lines.push(`        [${b}] = table.concat({`);
+    for (let off = 0; off < BANK; off += CHUNK) {
+      const s = b * BANK + off;
+      lines.push("            " + luaString(rom, s, s + CHUNK) + ",");
+    }
+    lines.push("        }),");
+  }
+  lines.push("    },");
+  lines.push("}");
+  lines.push(
+    "local api = ForeverGBPlayer",
+    "if not (api and api.RegisterRom) then",
+    '    print("|cffff6060" .. tostring(ADDON) .. ":|r ForeverGBPlayer isn\'t loaded, so this ROM wasn\'t added.")',
+    "    return",
+    "end",
+    "local ok, err = api.RegisterRom(rom, ADDON)",
+    'if not ok then print("|cffff6060" .. tostring(ADDON) .. ":|r " .. tostring(err)) end',
+  );
+  return { name, text: lines.join("\n") + "\n", header: hdr, warnings, sha1 };
+}
+
+// Addon folder name for a ROM name (folder names: letters, digits, underscores).
+const addonName = (name) => ADDON_PREFIX + name.replace(/[^A-Za-z0-9_]/g, "_");
+
+function tocText(name, hdr, iface, gameType) {
+  const title = hdr.title.replace(/[^ -~]|\|/g, "") || name; // printable ASCII, no WoW escapes
+  const lines = [`## Interface: ${iface}`];
+  if (gameType) lines.push(`## AllowLoadGameType: ${gameType}`);
+  lines.push(
+    `## Title: GB ROM: ${title}`,
+    `## Notes: Game Boy ROM for ForeverGBPlayer. Play it with /fgb play ${name}`,
+    "## Dependencies: ForeverGBPlayer",
+    "## Group: ForeverGBPlayer",
+    "## Version: 1",
+    "",
+    `${name}.lua`,
+  );
+  return lines.join("\n") + "\n";
+}
+function parseHeaderSafeLogo(rom) {
+  if (rom.length < 0x134) return false;
+  for (let i = 0; i < NINTENDO_LOGO.length; i++) if (rom[0x104 + i] !== NINTENDO_LOGO[i]) return false;
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+// Zip writer (deflate via the browser's CompressionStream, stored if unavailable).
+// ---------------------------------------------------------------------------
+const CRC_TABLE = (() => {
+  const t = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+    t[n] = c >>> 0;
+  }
+  return t;
+})();
+function crc32(u8) {
+  let c = 0xFFFFFFFF;
+  for (let i = 0; i < u8.length; i++) c = CRC_TABLE[(c ^ u8[i]) & 0xFF] ^ (c >>> 8);
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
+async function deflateRaw(u8) {
+  if (typeof CompressionStream === "undefined") return null;
+  try {
+    const stream = new Blob([u8]).stream().pipeThrough(new CompressionStream("deflate-raw"));
+    return new Uint8Array(await new Response(stream).arrayBuffer());
+  } catch (e) { return null; }
+}
+async function makeZip(entries) { // [{ name, data: Uint8Array }]
+  const enc = new TextEncoder();
+  const now = new Date();
+  const dosTime = (now.getHours() << 11) | (now.getMinutes() << 5) | (now.getSeconds() >> 1);
+  const dosDate = ((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate();
+  const chunks = [], central = [];
+  let offset = 0;
+  for (const e of entries) {
+    const nameBytes = enc.encode(e.name);
+    const crc = crc32(e.data);
+    const deflated = await deflateRaw(e.data);
+    const useDeflate = deflated && deflated.length < e.data.length;
+    const body = useDeflate ? deflated : e.data;
+    const method = useDeflate ? 8 : 0;
+    const local = new DataView(new ArrayBuffer(30));
+    local.setUint32(0, 0x04034b50, true); local.setUint16(4, 20, true); local.setUint16(6, 0x0800, true);
+    local.setUint16(8, method, true); local.setUint16(10, dosTime, true); local.setUint16(12, dosDate, true);
+    local.setUint32(14, crc, true); local.setUint32(18, body.length, true); local.setUint32(22, e.data.length, true);
+    local.setUint16(26, nameBytes.length, true); local.setUint16(28, 0, true);
+    chunks.push(new Uint8Array(local.buffer), nameBytes, body);
+    const cd = new DataView(new ArrayBuffer(46));
+    cd.setUint32(0, 0x02014b50, true); cd.setUint16(4, 20, true); cd.setUint16(6, 20, true); cd.setUint16(8, 0x0800, true);
+    cd.setUint16(10, method, true); cd.setUint16(12, dosTime, true); cd.setUint16(14, dosDate, true);
+    cd.setUint32(16, crc, true); cd.setUint32(20, body.length, true); cd.setUint32(24, e.data.length, true);
+    cd.setUint16(28, nameBytes.length, true); cd.setUint32(42, offset, true);
+    central.push(new Uint8Array(cd.buffer), nameBytes);
+    offset += 30 + nameBytes.length + body.length;
+  }
+  const cdSize = central.reduce((n, c) => n + c.length, 0);
+  const end = new DataView(new ArrayBuffer(22));
+  end.setUint32(0, 0x06054b50, true); end.setUint16(8, entries.length, true); end.setUint16(10, entries.length, true);
+  end.setUint32(12, cdSize, true); end.setUint32(16, offset, true);
+  return new Blob([...chunks, ...central, new Uint8Array(end.buffer)], { type: "application/zip" });
+}
+
+// One addon folder per ROM: the three .toc variants plus the ROM's Lua file.
+function zipEntries(items) {
+  const enc = new TextEncoder();
+  const entries = [];
+  for (const it of items) {
+    const addon = addonName(it.name);
+    for (const [suffix, iface, gameType] of TOC_FLAVORS) {
+      entries.push({ name: `${addon}/${addon}${suffix}.toc`, data: enc.encode(tocText(it.name, it.header, iface, gameType)) });
+    }
+    entries.push({ name: `${addon}/${it.name}.lua`, data: enc.encode(it.text) });
+  }
+  return entries;
+}
+
+// ---------------------------------------------------------------------------
+// Self-test: convert a synthetic ROM and compare with the Python tool's output.
+// ---------------------------------------------------------------------------
+function selftestRom() {
+  const rom = new Uint8Array(32768);
+  for (let i = 0; i < rom.length; i++) rom[i] = (i * 7 + 3) & 0xFF;
+  const title = "SELFTEST";
+  for (let i = 0; i < 15; i++) rom[0x134 + i] = i < title.length ? title.charCodeAt(i) : 0;
+  rom[0x143] = 0x80; rom[0x146] = 0x00; rom[0x147] = 0x03; rom[0x148] = 0x00; rom[0x149] = 0x02;
+  return rom;
+}
+async function runSelftest() {
+  const el = document.getElementById("selftest");
+  try {
+    const r = await convert(selftestRom(), "selftest.gb", null);
+    const got = await sha1Hex(new TextEncoder().encode(r.text));
+    if (got === SELFTEST_SHA1) {
+      el.textContent = "Converter check passed: output matches the Python tool byte for byte.";
+      el.className = "ok";
+    } else {
+      el.textContent = `Converter check failed (got ${got.slice(0, 12)}…). Use tools/rom2lua.py instead until this is fixed.`;
+      el.className = "bad";
+    }
+    if (/debug/.test(location.search)) { // local testing only: expose the self-test zip
+      const zip = await makeZip(zipEntries([r]));
+      const b = new Uint8Array(await zip.arrayBuffer());
+      let s = ""; for (let i = 0; i < b.length; i++) s += String.fromCharCode(b[i]);
+      const pre = document.createElement("pre");
+      pre.id = "debug-zip"; pre.hidden = true; pre.textContent = btoa(s);
+      document.body.appendChild(pre);
+    }
+  } catch (e) {
+    el.textContent = "Converter check couldn't run: " + e.message;
+    el.className = "bad";
+  }
+}
+
+// ---------------------------------------------------------------------------
+// UI
+// ---------------------------------------------------------------------------
+const items = []; // { id, fileName, bytes, name, text, header, warnings, error, size }
+let nextId = 1;
+const $ = (id) => document.getElementById(id);
+const fmtKB = (n) => n >= 1048576 ? (n / 1048576).toFixed(1) + " MB" : Math.round(n / 1024) + " KB";
+
+function chip(text, cls) {
+  const s = document.createElement("span");
+  s.className = "chip" + (cls ? " " + cls : "");
+  s.textContent = text;
+  return s;
+}
+
+function render() {
+  const box = $("carts");
+  box.querySelectorAll(".cart").forEach((n) => n.remove());
+  $("empty").hidden = items.length > 0;
+  const names = items.filter((i) => !i.error).map((i) => i.name);
+  const dupes = new Set(names.filter((n, i) => names.indexOf(n) !== i));
+
+  for (const it of items) {
+    const card = document.createElement("article");
+    card.className = "cart" + (it.error ? " err" : "");
+    const top = document.createElement("div");
+    top.className = "cart-top";
+    const t = document.createElement("span");
+    t.className = "cart-title";
+    t.textContent = it.error ? it.fileName : (it.header.title || "(no title)");
+    top.appendChild(t);
+    if (!it.error) {
+      const f = document.createElement("span");
+      f.className = "cart-file";
+      f.textContent = it.fileName;
+      top.appendChild(f);
+    }
+    const sp = document.createElement("span"); sp.className = "spacer"; top.appendChild(sp);
+    const rm = document.createElement("button");
+    rm.className = "link"; rm.type = "button"; rm.textContent = "Remove";
+    rm.addEventListener("click", () => { items.splice(items.indexOf(it), 1); render(); });
+    top.appendChild(rm);
+    card.appendChild(top);
+
+    if (it.error) {
+      const ul = document.createElement("ul"); ul.className = "notes bad";
+      const li = document.createElement("li"); li.textContent = it.error; ul.appendChild(li);
+      card.appendChild(ul);
+      box.appendChild(card);
+      continue;
+    }
+
+    const h = it.header;
+    const facts = document.createElement("div"); facts.className = "facts";
+    facts.appendChild(chip(fmtKB(it.bytes.length) + " ROM"));
+    facts.appendChild(chip(h.cartName, SUPPORTED_CARTS.has(h.cartType) ? "" : "bad"));
+    facts.appendChild(chip(h.cgb === "required" ? "Color only" : h.cgb === "supported" ? "Color + original" : "Original Game Boy"));
+    if (h.ramSize) facts.appendChild(chip(fmtKB(h.ramSize) + " save RAM" + (/BATTERY/.test(h.cartName) ? " (battery)" : "")));
+    facts.appendChild(chip(h.headerChecksumOk ? "header ✓" : "header ✗", h.headerChecksumOk ? "ok" : "warn"));
+    facts.appendChild(chip(h.globalChecksumOk ? "checksum ✓" : "checksum ✗", h.globalChecksumOk ? "ok" : "warn"));
+    facts.appendChild(chip(fmtKB(it.size) + " Lua"));
+    card.appendChild(facts);
+
+    const row = document.createElement("div"); row.className = "namerow";
+    const lab = document.createElement("label");
+    lab.htmlFor = "name-" + it.id; lab.textContent = "Name";
+    const inp = document.createElement("input");
+    inp.type = "text"; inp.id = "name-" + it.id; inp.value = it.name; inp.spellcheck = false;
+    inp.addEventListener("change", () => rename(it, inp.value));
+    row.append(lab, inp);
+    const play = document.createElement("span");
+    play.className = "hint";
+    play.append("In game: ");
+    const c = document.createElement("code"); c.textContent = "/fgb play " + it.name;
+    play.appendChild(c);
+    row.appendChild(play);
+    card.appendChild(row);
+
+    const notes = [...it.warnings];
+    if (!SUPPORTED_CARTS.has(h.cartType)) notes.unshift(`The emulator doesn't support ${h.cartName} cartridges yet, so this ROM will convert but won't start.`);
+    if (dupes.has(it.name)) notes.unshift("Another ROM in this list has the same name; only one of them would load. Rename one.");
+    if (notes.length) {
+      const ul = document.createElement("ul"); ul.className = "notes";
+      for (const n of notes) { const li = document.createElement("li"); li.textContent = n; ul.appendChild(li); }
+      card.appendChild(ul);
+    }
+    box.appendChild(card);
+  }
+  updatePack(dupes);
+}
+
+function updatePack(dupes) {
+  const ok = items.filter((i) => !i.error);
+  const btn = $("download");
+  btn.disabled = ok.length === 0 || dupes.size > 0;
+  btn.textContent = ok.length ? `Download zip (${ok.length} ROM${ok.length > 1 ? "s" : ""})` : "Download zip";
+  const st = $("status");
+  if (!ok.length) { st.textContent = "Add a ROM to enable the download."; st.className = ""; }
+  else if (dupes.size) { st.textContent = "Two ROMs share a name. Rename one to continue."; st.className = "bad"; }
+  else if (!st.dataset.keep) { st.textContent = `${fmtKB(ok.reduce((n, i) => n + i.size, 0))} of Lua before zipping.`; st.className = ""; }
+  delete st.dataset.keep;
+  const lines = [];
+  for (const i of ok) {
+    const addon = addonName(i.name);
+    lines.push(`${addon}\\`, `    ${addon}.toc  (+ _Camelot, _TBC)`, `    ${i.name}.lua`);
+  }
+  $("tree").textContent = lines.length ? lines.join("\n") : "(add a ROM to see the folders)";
+}
+
+async function rename(it, value) {
+  try {
+    const name = sanitizeName(value);
+    const r = await convert(it.bytes, it.fileName, name);
+    Object.assign(it, { name: r.name, text: r.text, size: r.text.length });
+  } catch (e) { /* keep the old name */ }
+  render();
+}
+
+async function addFiles(fileList) {
+  for (const file of fileList) {
+    const it = { id: nextId++, fileName: file.name };
+    try {
+      it.bytes = new Uint8Array(await file.arrayBuffer());
+      const r = await convert(it.bytes, file.name, null);
+      Object.assign(it, { name: r.name, text: r.text, header: r.header, warnings: r.warnings, size: r.text.length });
+    } catch (e) {
+      it.error = e instanceof RomError ? e.message : "Couldn't read this file: " + e.message;
+    }
+    const same = items.findIndex((x) => !x.error && !it.error && x.name === it.name && x.fileName === it.fileName);
+    if (same >= 0) items.splice(same, 1, it); else items.push(it);
+  }
+  render();
+}
+
+let downloads = null;
+if (window.claude && typeof window.claude.use === "function") {
+  window.claude.use("downloads").then((d) => { downloads = d; }).catch(() => {});
+}
+
+async function download() {
+  const ok = items.filter((i) => !i.error);
+  if (!ok.length) return;
+  const st = $("status");
+  st.textContent = "Packing…"; st.className = "";
+  const zip = await makeZip(zipEntries(ok));
+  const filename = "forevergbplayer-rom-packs.zip";
+  const done = () => {
+    st.dataset.keep = "1";
+    st.textContent = `Saved ${filename} (${fmtKB(zip.size)}). Drag the folder inside it into AddOns, then restart WoW.`;
+    st.className = "ok";
+    updatePack(new Set());
+  };
+  if (downloads) {
+    try { await downloads.save({ filename, data: zip }); done(); }
+    catch (e) {
+      st.className = "bad";
+      st.textContent = e && e.code === "declined" ? "Download cancelled." :
+        e && e.code === "rate_limited" ? "A save prompt is already open. Finish that one first." :
+        "Saving isn't available in this view. Open the page in a browser tab and try again.";
+    }
+    return;
+  }
+  if (!window.claude) { // opened as a plain file/page: an ordinary download works
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(zip);
+    a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+    done();
+    return;
+  }
+  st.className = "bad";
+  st.textContent = "Saving isn't available in this view. Open the page in a browser tab and try again.";
+}
+
+// Wiring
+const drop = $("drop");
+$("picker").addEventListener("change", (e) => { addFiles(e.target.files); e.target.value = ""; });
+["dragenter", "dragover"].forEach((t) => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.add("over"); }));
+["dragleave", "drop"].forEach((t) => drop.addEventListener(t, () => drop.classList.remove("over")));
+drop.addEventListener("drop", (e) => { e.preventDefault(); if (e.dataTransfer && e.dataTransfer.files.length) addFiles(e.dataTransfer.files); });
+$("download").addEventListener("click", download);
+render();
+runSelftest();
+</script>

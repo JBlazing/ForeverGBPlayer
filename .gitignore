@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+.idea/
+
+# ROM pack addons built by tools/rom2lua.py (copyrighted material; never commit)
+ForeverGBPlayer/roms/
+rom-addons/
+
+# downloaded test ROMs
+testroms/
+
+# generated sample pack (tools/make_sound_pack.py)
+ForeverGBPlayer/sound/
+
+# build output and CI caches
+dist/
+.cache/

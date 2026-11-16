@@ -1,0 +1,151 @@
+# Forever GB Player: test, build and publish to CurseForge.
+#
+# Releasing from GitLab: Build > Pipelines > Run pipeline on main, set "release" to true and
+# pick bump/channel. The release job bumps the version, commits, and pushes the tag, which
+# starts the publish pipeline below. (Needs the RELEASE_TOKEN variable, see RELEASING.md.)
+#
+# Releasing from your PC: scripts/release.sh does steps 1-2 for you, e.g.
+# `bash scripts/release.sh patch --beta`; run it with -h for options.
+#
+# How a release works:
+#   1. Bump "## Version:" in every ForeverGBPlayer/*.toc and commit.
+#   2. Push a matching tag:  git tag -a v1.0.1 -m "What changed" && git push origin v1.0.1
+#   3. This pipeline checks and tests the code, generates the sound pack, zips the addon and
+#      uploads it to CurseForge. The CurseForge app then offers the new version to everyone
+#      who has the addon. No ROMs are ever included: players make their own ROM pack addons.
+#
+# Tag suffix decides the CurseForge release type:
+#   v1.0.1          -> release
+#   v1.0.1-beta.1   -> beta
+#   v1.0.1-alpha.1  -> alpha
+#
+# Required CI/CD variables (Settings > CI/CD > Variables):
+#   CF_API_TOKEN    CurseForge API token (masked + protected)
+#   CF_PROJECT_ID   CurseForge project ID (shown in the project's "About" box)
+# Optional:
+#   CF_GAME_VERSION_IDS  Comma-separated CurseForge game version IDs. Set this if the
+#                        automatic lookup from the TOCs' ## Interface lines can't find a match.
+#   CF_DRY_RUN=1         Build everything but skip the actual upload.
+#   HUB_MIRROR           Registry the job images are pulled through. Defaults to the Docker
+#                        Hub pull-through cache on the Pi (/opt/docker-reg, port 5001).
+#   RELEASE_TOKEN        Project access token (write_repository, Maintainer) used by the
+#                        manual release job to push the version commit and tag.
+#
+# The inputs below only matter for a manual "Run pipeline"; pushes and tags use the defaults.
+
+spec:
+  inputs:
+    release:
+      type: boolean
+      default: false
+      description: "Cut a release from main: bump the version, commit and tag it."
+    bump:
+      options: [patch, minor, major, none]
+      default: patch
+      description: "Version bump. 'none' tags the current .toc version (next beta, or final after betas)."
+    channel:
+      options: [beta, alpha, prod]
+      default: beta
+      description: "CurseForge release type. beta/alpha tag vX.Y.Z-beta.N; prod tags vX.Y.Z."
+    message:
+      type: string
+      default: ""
+      description: "Changelog for CurseForge. Leave empty to list the commits since the last tag."
+---
+
+workflow:
+  rules:
+    - if: $CI_COMMIT_TAG
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
+      when: never
+    - if: $CI_COMMIT_BRANCH
+
+stages:
+  - validate
+  - release
+  - package
+  - publish
+
+default:
+  image: ${HUB_MIRROR}/library/alpine:3.20
+  interruptible: true
+  before_script:
+    - apk add --no-cache bash curl jq zip git lua5.1 >/dev/null
+
+variables:
+  HUB_MIRROR: localhost:5001
+  ADDON_DIR: ForeverGBPlayer
+  GIT_DEPTH: 0 # full history so the changelog can find the previous tag
+  RELEASE: "$[[ inputs.release ]]"
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+
+# Jobs that run the Python tools (tests under real Lua 5.1 via lupa, the sound pack).
+# Debian rather than Alpine: numpy/soundfile/lupa ship glibc wheels, and soundfile falls
+# back to the system libsndfile (with Ogg Vorbis) where no wheel bundles one.
+.python:
+  image: ${HUB_MIRROR}/library/python:3.12-slim-bookworm
+  before_script:
+    - apt-get update -qq >/dev/null
+    - apt-get install -y -qq --no-install-recommends git curl zip unzip libsndfile1 >/dev/null
+    - pip install -q -r tools/requirements.txt
+  cache:
+    - key:
+        files: [tools/requirements.txt]
+      paths: [.cache/pip]
+    - key:
+        files: [scripts/fetch-testroms.sh]
+      paths: [testroms/]
+
+lint:
+  stage: validate
+  script:
+    - bash ci/validate.sh
+
+test:
+  extends: .python
+  stage: validate
+  script:
+    - bash ci/test.sh
+
+# Manual release: only from "Run pipeline" (or the API) on the default branch with release=true.
+# It pushes a tag; the tag's own pipeline does the packaging and CurseForge upload.
+release:
+  stage: release
+  needs: [lint, test]
+  interruptible: false
+  resource_group: release # never cut two releases at once
+  rules:
+    - if: $RELEASE == "true" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_PIPELINE_SOURCE =~ /^(web|api)$/
+  variables:
+    RELEASE_BUMP: $[[ inputs.bump ]]
+    RELEASE_CHANNEL: $[[ inputs.channel ]]
+    RELEASE_MESSAGE: $[[ inputs.message ]]
+  script:
+    - bash ci/cut-release.sh
+
+package:
+  extends: .python
+  stage: package
+  needs: [lint, test]
+  rules:
+    - if: $RELEASE == "true"
+      when: never # a release run only tags; the tag pipeline builds the zip
+    - when: on_success
+  script:
+    - bash ci/package.sh
+  artifacts:
+    name: "$ADDON_DIR-$CI_COMMIT_REF_SLUG"
+    paths:
+      - dist/
+    expire_in: 30 days
+
+curseforge:
+  stage: publish
+  needs: [package]
+  interruptible: false
+  resource_group: curseforge # never run two uploads at once
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+(-(alpha|beta)(\.\d+)?)?$/
+  script:
+    - bash ci/upload-curseforge.sh

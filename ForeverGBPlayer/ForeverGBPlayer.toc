@@ -1,0 +1,11 @@
+## Interface: 16001
+## AllowLoadGameType: camelot
+## Title: Forever GB Player
+## Notes: Game Boy and Game Boy Color emulator. Type /fgb play <rom>. ROMs come from ForeverGBPlayer_Rom_* addons.
+## IconTexture: Interface\AddOns\ForeverGBPlayer\media\icon.png
+## Version: 0.1.0
+## SavedVariables: ForeverGBPlayerDB
+
+core\Core.lua
+ForeverGBPlayer.lua
+sound\waves.lua
