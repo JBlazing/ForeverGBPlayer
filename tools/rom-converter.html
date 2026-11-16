@@ -58,6 +58,16 @@ header { display: grid; gap: 6px; }
 }
 .lede { margin: 0; color: var(--muted); max-width: 62ch; }
 .lede strong { color: var(--ink); font-weight: 500; }
+.legal {
+  margin: 4px 0 0;
+  max-width: 62ch;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  font-size: 14px;
+}
+.legal strong { font-weight: 600; }
 
 h2 {
   font: 600 12px/1.2 var(--font-body);
@@ -185,6 +195,9 @@ footer { font-size: 13px; color: var(--muted); display: grid; gap: 4px; }
       addons for ForeverGBPlayer, zipped and ready to extract into your AddOns folder. Each ROM becomes its own small
       addon that registers itself with ForeverGBPlayer when WoW starts. Conversion runs in this tab:
       <strong>your ROMs are never uploaded</strong>.</p>
+    <p class="legal" role="note"><strong>Only use ROMs you legally own.</strong> That means backups you made
+      yourself from your own cartridges. Don't download copies of games you don't own. Forever GB Player doesn't
+      include any games.</p>
   </header>
 
   <section aria-labelledby="h-add">
@@ -192,7 +205,7 @@ footer { font-size: 13px; color: var(--muted); display: grid; gap: 4px; }
     <div class="drop" id="drop">
       <div class="slot" aria-hidden="true"></div>
       <div class="big">Drop .gb or .gbc files here</div>
-      <div class="small">or click to choose · several at once is fine</div>
+      <div class="small">or click to choose · several at once is fine · only backups of cartridges you own</div>
       <input type="file" id="picker" multiple accept=".gb,.gbc,.gba,.sgb,.cgb" aria-label="Choose ROM files">
     </div>
   </section>

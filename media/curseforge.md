@@ -19,7 +19,8 @@ saves between sessions.
 - **A window you can move and resize.**
 - **Each game is its own small addon**, so you can switch games on and off in the AddOns list.
 
-**No games are included.** You bring your own (see *Where do I get games?* below).
+**No games are included.** Only use ROMs you legally own: backups you made yourself from your own
+cartridges (see *Where do I get games?* below).
 
 ## Getting started
 
@@ -32,25 +33,30 @@ Install it with the CurseForge app like any other addon.
 ### 2. Turn your game into an addon
 
 World of Warcraft can't open game files directly, so each game is converted into a small addon first.
-The converter comes with Forever GB Player and runs in your web browser. Nothing is uploaded anywhere.
+The **ROM Converter** does this in your web browser. Your game file stays on your computer and
+is never uploaded anywhere.
+
+1. Open the ROM Converter:
+   **[jblazing.github.io/ForeverGBPlayer/tools/rom-converter.html](https://jblazing.github.io/ForeverGBPlayer/tools/rom-converter.html)**
+2. Drag your game file (`.gb` or `.gbc`) onto the page. You can add several games at once. For each one it shows
+   the game's name and the name you'll type to play it, for example `/fgb play tetris`.
+3. Click **Download zip**.
+
+*Offline?* The same converter comes with the addon. Open the **ForeverGBPlayer** folder inside your AddOns folder
+(see step 3) and double-click **ROM Converter.html**.
+
+### 3. Add it to the game
 
 1. Open your **AddOns** folder. It's usually
    `C:\Program Files (x86)\World of Warcraft\<your game version>\Interface\AddOns`.
    For an easy way to find it, open the **Battle.net** app, click the gear icon next to **Play** and choose
    **Show in Explorer**. Then open your game version's folder, then `Interface`, then `AddOns`.
-2. Open the **ForeverGBPlayer** folder and double-click **ROM Converter.html**. It opens in your web browser.
-3. Drag your game file (`.gb` or `.gbc`) onto the page. It shows the game's name and the name
-   you'll type to play it, for example `/fgb play tetris`.
-4. Click **Download zip**.
-
-### 3. Add it to the game
-
-1. Double-click the zip you downloaded to open it. Inside is a folder named like
+2. Double-click the zip you downloaded to open it. Inside is a folder named like
    **ForeverGBPlayer_Rom_tetris**.
-2. **Drag that folder into your AddOns folder**, next to the ForeverGBPlayer folder.
+3. **Drag that folder into your AddOns folder**, next to the ForeverGBPlayer folder.
    Don't use "Extract All", because it puts the folder one level too deep and the game won't find it.
-3. **Restart World of Warcraft.** A `/reload` isn't enough for new addons.
-4. On the character screen, click **AddOns** and check that both **Forever GB Player** and
+4. **Restart World of Warcraft.** A `/reload` isn't enough for new addons.
+5. On the character screen, click **AddOns** and check that both **Forever GB Player** and
    **GB ROM: (your game)** are ticked.
 
 ### 4. Play
@@ -88,8 +94,14 @@ Drag the window by its title bar to move it.
 
 ## Where do I get games?
 
-Forever GB Player doesn't come with any games. Use backups of cartridges you own, or free homebrew
-games made by fans today. **Homebrew Hub** (hh.gbdev.io) has hundreds of free Game Boy games.
+Forever GB Player doesn't come with any games.
+
+**Only use ROMs you legally own.** That means backups you made yourself from Game Boy or Game Boy Color
+cartridges you own. Don't download copies of commercial games from the internet. Please don't ask for,
+share or link ROM files in the comments.
+
+Free homebrew games are also fine, because their authors give them away to download. **Homebrew Hub**
+(hh.gbdev.io) has hundreds of them.
 
 Game Boy **Advance** games (`.gba`) are a different console and won't work.
 
