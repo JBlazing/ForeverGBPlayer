@@ -19,6 +19,7 @@ from lupa import lua51
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 ADDON = ROOT / "ForeverGBPlayer" / "ForeverGBPlayer.lua"
+LINK = ROOT / "ForeverGBPlayer" / "Link.lua"  # without FojjiCore: the link cable stays off
 CORE = ROOT / "ForeverGBPlayer" / "core" / "Core.lua"
 ATLAS = ROOT / "ForeverGBPlayer" / "media" / "atlas4.tga"
 
@@ -507,7 +508,7 @@ def test_input(lua, slash):
 def main():
     lua = lua51.LuaRuntime(unpack_returned_tuples=True)
     lua.execute(MOCK)
-    for path in (CORE, ADDON):  # same order as the .toc
+    for path in (CORE, ADDON, LINK):  # same order as the .toc
         chunk = lua.eval("loadstring")(path.read_text(encoding="utf-8"), "@" + path.name)
         if chunk is None:
             sys.exit(f"syntax error loading {path.name}")

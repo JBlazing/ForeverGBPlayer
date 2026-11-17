@@ -5,7 +5,9 @@
 ## IconTexture: Interface\AddOns\ForeverGBPlayer\media\icon.png
 ## Version: 1.0.0
 ## SavedVariables: ForeverGBPlayerDB
+## OptionalDeps: FojjiCore, FojjiCore_Games
 
 core\Core.lua
 ForeverGBPlayer.lua
+Link.lua
 sound\waves.lua

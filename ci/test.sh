@@ -34,6 +34,9 @@ echo "== CGB double speed / DMA / WRAM banks / battery saves =="
 echo "== Joypad =="
 "$PY" tools/test_joypad.py
 
+echo "== Link cable: two emulators over a simulated whisper channel =="
+"$PY" tools/test_link.py
+
 echo "== Sound chip: Blargg dmg_sound =="
 "$PY" tools/test_apu.py testroms/blargg/dmg_sound/*.gb
 

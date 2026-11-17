@@ -86,6 +86,7 @@ Press **Esc** whenever you need to move or type in chat. Entering combat gives y
 | `/fgb play tetris` | Start a game. Use the name the converter showed you. |
 | `/fgb roms` | List the games you've added. |
 | `/fgb stop` | Close the game. It also saves your progress. The window's **X** does the same. |
+| `/fgb link Name` | Plug a link cable into a guild or group member's game. Both of you need FojjiCore Games. `/fgb link off` unplugs. |
 | `/fgb sound off` | Turn the sound off. Use `/fgb sound on` to turn it back on. |
 | `/fgb scale 4` | Make the screen bigger or smaller, from 1 to 8. The default is 3. |
 | `/fgb help` | Show every command. |
@@ -110,7 +111,8 @@ Game Boy **Advance** games (`.gba`) are a different console and won't work.
 - **Most games work.** These won't work fully:
   - A few early cartridge types won't start. The converter warns you.
   - Games with a built-in clock, such as Pokémon Gold, Silver and Crystal, may run, but their in-game clock won't work.
-  - Link-cable multiplayer isn't supported.
+  - The link cable (`/fgb link <name>`) is slow, about 3 bytes a second, so trading and turn-based link
+    features work but real-time two-player modes don't. It needs FojjiCore Games.
   - A few games use unusual graphics tricks and may show small glitches.
 - **Sound is an approximation.** WoW addons can only play recorded sounds, so the music is
   rebuilt from pre-recorded notes. It's recognisable, but not exactly like the original.

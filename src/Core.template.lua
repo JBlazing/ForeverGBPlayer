@@ -28,6 +28,13 @@
 --
 -- Battery saves: core.hasBattery, GetSaveRAM() -> hex string, LoadSaveRAM(hex).
 --
+-- Link cable: with no cable (the default) an internal-clock transfer finishes at once and
+-- reads 0xFF. core.SetSerialPort(port) plugs a cable in: port.Master(byte) is called when
+-- this Game Boy starts a transfer on its own clock, and the core then stops running
+-- (RunFrame returns at once) until core.SerialDone(byteIn) finishes it. port.Slave(byte)
+-- is called when the game waits for the other side's clock (SC = 0x80); the host finishes
+-- that one with SerialDone too. The callbacks must not run the core.
+--
 -- Sound: APU registers + channel state (triggers, length, envelope, sweep, 512 Hz frame
 -- sequencer) via core.GetAudioState(); the host plays pre-rendered samples. No sample
 -- synthesis, and no sub-frame-sequencer quirks (e.g. extra length clocking).
@@ -218,6 +225,7 @@ function GBCore.New(rom)
     end
 
     local serial = {}
+    local serialPort, serialWait = nil, false -- link cable; true while our own transfer waits
 
     -- Joypad: pressed-button masks (1 = pressed). D-pad: right 1, left 2, up 4, down 8.
     -- Buttons: a 1, b 2, select 4, start 8. FF00 bits 4/5 (stored in mem) select which
@@ -587,12 +595,21 @@ function GBCore.New(rom)
         elseif a == 0xFF02 then
             mem[a] = v
             if v >= 0x80 and v % 2 == 1 then
-                -- Internal-clock transfer with nothing attached: completes "instantly".
-                serial[#serial + 1] = strchar(mem[0xFF01])
-                mem[0xFF01] = 0xFF
-                mem[0xFF02] = v - 0x80
-                IF = OR8[IF * 256 + 0x08]
-                nextEvent = cycles
+                if serialPort then
+                    -- Our clock, cable plugged in: stop until the other Game Boy's byte arrives.
+                    serialWait = true
+                    stopAt = cycles
+                    serialPort.Master(mem[0xFF01])
+                else
+                    -- Internal-clock transfer with nothing attached: completes "instantly".
+                    serial[#serial + 1] = strchar(mem[0xFF01])
+                    mem[0xFF01] = 0xFF
+                    mem[0xFF02] = v - 0x80
+                    IF = OR8[IF * 256 + 0x08]
+                    nextEvent = cycles
+                end
+            elseif v >= 0x80 and serialPort then
+                serialPort.Slave(mem[0xFF01]) -- waiting for the other side's clock
             end
         elseif a == 0xFF04 then
             divBase = cycles
@@ -1153,6 +1170,7 @@ function GBCore.New(rom)
     }
 
     local function Run()
+        if serialWait then return end
         local ops = ops
         while cycles < stopAt do
             if halted then
@@ -1221,6 +1239,33 @@ function GBCore.New(rom)
 
     -- Serial output since start (Blargg tests print their results here).
     function core.GetSerial() return table.concat(serial) end
+
+    -- Link cable (see the header). SerialState() -> "master" (our transfer is waiting),
+    -- "slave" (armed, waiting for the other side's clock) or nil, plus the byte in SB.
+    function core.SerialState()
+        local sc = mem[0xFF02]
+        if serialWait then return "master", mem[0xFF01] end
+        if sc >= 0x80 and sc % 2 == 0 then return "slave", mem[0xFF01] end
+        return nil, mem[0xFF01]
+    end
+
+    -- Finishes the transfer in progress: SB = byteIn, SC bit 7 cleared, serial interrupt.
+    function core.SerialDone(byteIn)
+        if mem[0xFF02] < 0x80 then serialWait = false return false end
+        mem[0xFF01] = byteIn % 256
+        mem[0xFF02] = mem[0xFF02] - 0x80
+        IF = OR8[IF * 256 + 0x08]
+        nextEvent = cycles
+        serialWait = false
+        return true
+    end
+
+    -- Plugs a cable in (port table) or pulls it out (nil). Pulling it out mid-transfer
+    -- finishes the transfer with 0xFF, as on hardware with nothing on the other end.
+    function core.SetSerialPort(port)
+        serialPort = port
+        if not port and serialWait then core.SerialDone(0xFF) end
+    end
 
     function core.IsLocked() return locked end
 

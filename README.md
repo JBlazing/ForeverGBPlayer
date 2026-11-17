@@ -85,6 +85,7 @@ timer, interrupts, ALU helpers) or `tools/gen_core.py` (one Lua function per opc
 GBCore.New(GBRomLibrary[name]) -> core | nil, err
 core.RunFrame()  -- runs to the next VBlank; core.fb then holds 160x144 shades 0..3
 core.RunCycles(n)  core.GetSerial()  core.GetRegs()  core.Read(a)  core.Write(a, v)
+core.SetSerialPort(port)  core.SerialState()  core.SerialDone(byte)   -- link cable (see Link.lua)
 ```
 
 Status:
@@ -97,6 +98,7 @@ Status:
   It's written on logout, `/reload`, `/fgb stop` or a ROM switch, and loaded on `/fgb play`.
 - **Speed** (plain Lua 5.1 on a desktop PC): about 1–2 ms per Game Boy frame, including the PPU.
   Double-speed Color games use about twice the CPU time.
+- **Link cable:** see *Link cable* below.
 - **Not done yet:** audio, colouring of original Game Boy games on Color hardware, MBC2, RTC, mid-scanline effects
   and per-memory-access timing.
 
@@ -106,6 +108,7 @@ py tools/test_ppu.py testroms/acid2/dmg-acid2.gb testroms/acid2/reference-dmg.pn
 py tools/test_ppu.py testroms/acid2/cgb-acid2.gbc testroms/acid2/reference-cgb.png # CGB PPU
 py tools/make_cgb_tests.py && py tools/test_cgb.py    # double speed, DMA, WRAM banks, saves
 py tools/make_joypad_test.py && py tools/test_joypad.py
+py tools/test_link.py                                 # link cable: two emulators, simulated whispers
 /fgb cpu <rom>    # in game: serial output + ms/frame
 /fgb play <rom>   # in game: run the emulator and draw it through the atlas renderer
 ```
@@ -172,3 +175,21 @@ built by the `tools/make_*.py` scripts.
 
 Tagged versions are tested, packaged and uploaded to CurseForge by the GitLab pipeline
 (`.gitlab-ci.yml`, `ci/`). See [RELEASING.md](RELEASING.md) for the one-time setup and how to cut a release.
+
+## Link cable
+
+`/fgb link <name>` plugs a link cable into another player's emulator. It goes over the same channel
+as the FojjiCore multiplayer games (Poker, Chess and the rest): FojjiCore Games' `Games.Duel` sends the
+challenge, the other player gets FojjiCore's usual accept toast, and each serial byte is a Duel extra
+message (`D:Send`), so it rides FojjiCore's Comm whisper queue and only reaches guild and group members.
+FojjiCore and FojjiCore Games 4.0.52 or newer are optional dependencies; without them `/fgb link` says
+so and everything else works as before. `/fgb link` shows the status and byte counts, and `/fgb link off`
+unplugs. Logging out or `/reload` unplugs too, and the other player is told.
+
+Whispers take hundreds of milliseconds where a real cable takes one, so the two emulators don't run in
+lockstep. A Game Boy that starts a transfer on its own clock pauses until the other side's byte comes
+back, so its game time stands still and the game's timeouts don't fire. The listening side pauses too
+during a burst of bytes. Comm sends one message every 0.35 s, so it moves about 3 bytes a second each
+way. That's enough for features that swap a few hundred bytes (trades, turn-based battles), slowly. Games
+that swap a byte every frame (real-time two-player modes) can't keep up. Details are at the top of
+`ForeverGBPlayer/Link.lua`.

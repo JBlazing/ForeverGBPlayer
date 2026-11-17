@@ -318,13 +318,24 @@ end
 -- framebuffer instead of ours. Paced to the real Game Boy rate (59.73 Hz) whatever
 -- WoW's frame rate is; runs at most 3 GB frames per WoW frame and drops time beyond
 -- that (so a hitch slows the game briefly instead of fast-forwarding).
+-- With the link cable plugged in (Link.lua) the game pauses while it waits for the other
+-- player's byte; after LINK_SILENCE seconds of that, its sound stops too.
 local GB_FRAME_S = 70224 / 4194304
-local play = { core = nil, acc = 0 }
+local LINK_SILENCE = 0.25
+local play = { core = nil, acc = 0, heldFor = 0 }
 patterns.play = {
     reset = function() end,
     step = function(_, elapsed)
         local core = play.core
         if not core then return end
+        local link = ForeverGBPlayer.Link
+        if link and link.Holding() then
+            local was = play.heldFor
+            play.heldFor, play.acc = was + (elapsed or GB_FRAME_S), 0
+            if was < LINK_SILENCE and play.heldFor >= LINK_SILENCE then SoundStopAll() end
+            return
+        end
+        play.heldFor = 0
         local acc = play.acc + (elapsed or GB_FRAME_S)
         if acc > GB_FRAME_S * 3 then acc = GB_FRAME_S * 3 end
         while acc >= GB_FRAME_S do
@@ -592,11 +603,14 @@ local function InputButtonName(btn)
     return name
 end
 
+local linkShown -- the link status the title shows now
 local function UpdateTitle()
     if not titleText then return end
     if state.pattern == "play" and play.core then
-        titleText:SetText(inputFocused and "|cff88ff88Keyboard: ON|r  (Esc to release)"
-            or "|cffffcc00Click the screen to play|r")
+        local link = ForeverGBPlayer.Link
+        linkShown = link and link.Status() or nil
+        titleText:SetText((inputFocused and "|cff88ff88Keyboard: ON|r  (Esc to release)"
+            or "|cffffcc00Click the screen to play|r") .. (linkShown and ("  " .. linkShown) or ""))
     else
         titleText:SetText("Forever GB Player  (drag to move, /fgb help)")
     end
@@ -780,6 +794,8 @@ end
 ------------------------------------------------------------------------------
 local function OnUpdate(_, elapsed)
     local gen, render, calls = 0, 0, 0
+    local link = ForeverGBPlayer.Link
+    if link and state.pattern == "play" and link.Status() ~= linkShown then UpdateTitle() end
     if active then
         local t0 = debugprofilestop()
         patterns[state.pattern].step(state.t, elapsed)
@@ -820,6 +836,7 @@ local function Stop()
     bench = nil
     if driver then driver:SetScript("OnUpdate", nil) end
     if root then root:Hide() end
+    if ForeverGBPlayer.Link then ForeverGBPlayer.Link.CoreChanged() end
 end
 
 ------------------------------------------------------------------------------
@@ -915,6 +932,7 @@ local HELP = {
     "    keys: arrows/WASD d-pad, ] = A, [ = B, Enter = Start, Backspace = Select",
     "/fgb keys       - toggle key debug (prints every Game Boy button press/release)",
     "/fgb sound [on|off|fade ms|mode envelope|steps|channels 1234] - sound; prints sounds started/second",
+    "/fgb link <name> - link cable with a guild or group member (needs FojjiCore Games); /fgb link = status, /fgb link off = unplug",
     "/fgb stop       - stop and hide",
 }
 
@@ -922,6 +940,12 @@ local HELP = {
 ForeverGBPlayer.fb, ForeverGBPlayer.W, ForeverGBPlayer.H = fb, W, H
 ForeverGBPlayer.RomByte, ForeverGBPlayer.VerifyRom = RomByte, VerifyRom
 ForeverGBPlayer.play, ForeverGBPlayer.renderers = play, renderers
+
+-- For Link.lua: is the emulator running (window open, playing a game), and repaint the title.
+function ForeverGBPlayer.IsRunning()
+    return root ~= nil and root:IsShown() and state.pattern == "play" and play.core ~= nil
+end
+ForeverGBPlayer.UpdateTitle = function() UpdateTitle() end
 
 SLASH_FOREVERGB1 = "/fgb"
 SLASH_FOREVERGB2 = "/gbspike" -- the old name, kept as an alias
@@ -961,6 +985,8 @@ SlashCmdList.FOREVERGB = function(msg)
             sound.plays, secs > 0 and sound.plays / secs or 0,
             GBSoundWaves and "" or " (no sound\\waves.lua: bass uses the triangle fallback)")
         sound.plays, sound.since = 0, GetTime()
+    elseif cmd == "link" then
+        if ForeverGBPlayer.Link then ForeverGBPlayer.Link.Command(arg) end
     elseif cmd == "keys" then
         keyDebug = not keyDebug
         Print("key debug %s - keyboard is %s, playing: %s", keyDebug and "ON" or "OFF",
@@ -980,11 +1006,16 @@ SlashCmdList.FOREVERGB = function(msg)
         SetInputFocus(false) -- releases buttons on the previous core
         SoundStopAll()
         LoadSave(core)
-        play.core, play.acc = core, 0
+        if play.core and ForeverGBPlayer.Link then
+            play.core = nil
+            ForeverGBPlayer.Link.CoreChanged() -- unplug the old game before the new one starts
+        end
+        play.core, play.acc, play.heldFor = core, 0, 0
         state.pattern = "play"
         -- The atlas renderer only knows 4 shades; Game Boy Color output needs per-pixel colour.
         state.renderer = core.cgb and "pixel" or "atlas"
         if running then Activate(state.renderer, state.pattern, state.force) else Start() end
+        if ForeverGBPlayer.Link then ForeverGBPlayer.Link.CoreChanged() end
         SetInputFocus(true)
         Print("play: %s (%s, %s) - 'emu' in the stats line = CPU+PPU ms per WoW frame",
             rom.name, core.mbc, core.cgb and "Game Boy Color, pixel renderer" or "Game Boy, atlas renderer")
